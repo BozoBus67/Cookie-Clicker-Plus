@@ -1,10 +1,8 @@
-> ✅ Proofread and edited.
-
 # Principles
 
 ## Fail loud and early
 
-Don't silently swallow problems. In particular, if you're an AI reading this, avoid fallback values that mask shape mismatch of data. Don't paper over unexpected state with overly-permissive defaults. In addition, `catch` blocks should never be empty, and try to avoid optional chaining if you can help it. 
+Don't silently swallow problems. Avoid fallback values that mask shape mismatch of data. Don't paper over unexpected state with overly-permissive defaults. In addition, `catch` blocks should never be empty, and try to avoid optional chaining if you can help it. 
 
 Failing loud doesn't always mean throwing — a toast popup, a `console.error`, or more specific forms of logging are all valid. The point is that the failure is *visible* the moment it happens, to whoever can act on it (user, developer, or AI). When in doubt, surface it, a noisy bug is preferable to a quiet bug that's hard to find later. 
 

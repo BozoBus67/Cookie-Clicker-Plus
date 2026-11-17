@@ -1,5 +1,3 @@
-> ✅ Proofread and edited.
-
 # Architecture
 
 ## Stack

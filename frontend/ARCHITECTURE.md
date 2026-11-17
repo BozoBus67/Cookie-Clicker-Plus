@@ -1,5 +1,3 @@
-> ✅ Proofread and edited.
-
 # Frontend
 
 Subfolders under src with nontrivial complexity have their own READMEs, containing documentation specific to that subfolder. 
