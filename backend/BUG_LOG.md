@@ -8,6 +8,41 @@ Each entry has the symptom, what was actually wrong, the fix, and the pattern to
 
 ---
 
+## 2026-11-23 — Auction buy duplication (TOCTOU race) + Stripe webhook idempotency
+
+Two related correctness holes that both let the shared economy get inflated. Fixing them together because they sit next to each other on the money path.
+
+### Auction `buy_listing`
+
+Symptom: Same shape as the 2026-05-18 cancel bug but on the buy side. Two buyers clicking the same listing simultaneously could both pass the existence SELECT, both execute the full spend/credit flow, then one DELETE would succeed and the other would no-op — net effect: seller credited twice, both buyers received the item, cookies/tokens materialized from nothing.
+
+Root cause: TOCTOU race — SELECT-then-side-effects-then-DELETE, with no atomic reserve between the check and the act. The 2026-05-18 entry explicitly flagged this as an unfixed sister bug and noted the reason it wasn't fixed at the same time: buy involves money moving in both directions, so you need rollback handling (the reserve-then-fail compensation) that cancel doesn't.
+
+Fix: Collapsed the reserve into the DELETE itself (`DELETE FROM Auction_House WHERE id = $1 RETURNING *`). Only the first buyer gets the row back; the rest see empty `.data` and get a 409 before any payment moves. For the balance-drained-mid-flight case (buyer passed affordability implicitly at SELECT time but failed at spend time), the spend/credit block is wrapped in try/except and re-inserts the listing on failure so the seller's item isn't destroyed. See `_execute_trade` and `_reinsert_listing` in `routers/auction_house.py`.
+
+### Stripe webhook double-credit
+
+Symptom: Stripe retries `checkout.session.completed` on any non-2xx response or timeout. A transient 502 from Render, a slow Supabase round-trip, or a cold-start on the webhook handler all led to the same event.id being delivered more than once, and each delivery credited the tokens again.
+
+Root cause: No idempotency key. The handler trusted that each delivery was unique and credited unconditionally.
+
+Fix: Added a `Stripe_Processed_Events` table with `event_id TEXT PRIMARY KEY` (needs to be created in Supabase — see follow-ups below). The handler now SELECTs for `event_id` first and returns `already_processed` on a hit, then INSERTs the id after crediting on a miss. Mark-after-credit (not mark-before-credit) was deliberate: a crash between the credit and the mark results in a retried credit (double-credit, which Kevin absorbs), while a crash between the mark and the credit would silently drop the credit (the user pays and gets nothing, which is strictly worse). Trade-off documented inline.
+
+### Watch for this pattern when
+
+- Any endpoint on the money path has a sequence of "read, do side effects, then commit the state change." If the commit isn't what gates the side effects, concurrent callers race.
+- Any webhook handler that credits anything. Webhooks are retried, and the retry has to be a no-op.
+
+### Follow-ups required outside the code
+
+- Create the `Stripe_Processed_Events` table in Supabase manually (same place you created the other tables):
+  ```sql
+  CREATE TABLE "Stripe_Processed_Events" (event_id TEXT PRIMARY KEY);
+  ```
+  Without this, the webhook's first call tries to SELECT from a table that doesn't exist and 500s. The table is write-only from this handler, so no other callers to worry about.
+
+---
+
 ## 2026-05-18 — Auction cancel refund duplication (TOCTOU race)
 
 Symptom: Player created a listing, then fired ~30 cancel requests in parallel — received 30 refunds of the same listed items, duplicating tokens.

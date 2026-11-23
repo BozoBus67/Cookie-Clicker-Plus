@@ -100,7 +100,12 @@ class _MultiRowFakeTable:
       return _Fake_Result(data=None)
     if self.mode == "delete":
       self.parent.last_delete = True
-      return _Fake_Result(data=None)
+      # See the matching comment in _fake_supabase.py — buy_listing's
+      # atomic reserve now checks deleted.data, so the fake has to return
+      # a non-empty list on the happy path.
+      if getattr(self.parent, "delete_returns_empty", False):
+        return _Fake_Result(data=[])
+      return _Fake_Result(data=[{}])
     # select
     if self.parent._single_queue:
       return _Fake_Result(data=self.parent._single_queue.pop(0))

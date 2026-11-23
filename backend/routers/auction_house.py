@@ -73,19 +73,25 @@ def buy_listing(body: ListingRequest, user=Depends(_REQUIRE_AUCTION_TIER)):
   if str(user.id) == str(seller_id):
     raise HTTPException(status_code=400, detail="Cannot buy your own listing")
 
-  if listing["price_item_type"] == "tokens":
-    spend_tokens(user.id, listing["price_item_amount"])
-    add_tokens(seller_id, listing["price_item_amount"])
-  elif listing["price_item_type"] == "cookies":
-    spend_cookies(user.id, listing["price_item_amount"])
-    add_cookies(seller_id, listing["price_item_amount"])
+  # Atomic reserve. The predicate'd DELETE serializes concurrent buys at the
+  # DB layer — only the first DELETE returns a row, the rest see empty .data
+  # and get a 409. Without this, two buyers could both pass the SELECT above
+  # and both run the full spend/credit flow, duplicating the seller's payment
+  # and fabricating the buyer's item from nothing. Same shape as
+  # cancel_listing's reserve-via-delete. See BUG_LOG 2026-11-23.
+  deleted = supabase.table("Auction_House").delete().eq("id", body.listing_id).execute()
+  if not deleted.data:
+    raise HTTPException(status_code=409, detail="Listing no longer available")
 
-  if listing["selling_item_type"] == "tokens":
-    add_tokens(user.id, listing["amount"])
-  elif listing["selling_item_type"] == "cookies":
-    add_cookies(user.id, listing["amount"])
-
-  supabase.table("Auction_House").delete().eq("id", body.listing_id).execute()
+  # If a spend fails after the reserve (e.g. buyer's balance drained from
+  # another tab between the SELECT and here), the listing is already gone,
+  # so re-insert it to compensate. The re-insert gets a fresh auto-generated
+  # id but preserves everything the seller cares about.
+  try:
+    _execute_trade(user.id, seller_id, listing)
+  except HTTPException:
+    _reinsert_listing(listing)
+    raise
 
   buyer_data = supabase.table("User_Login_Data").select("game_data, premium_game_data").eq("id", user.id).single().execute().data
   return {"status": "ok", "listing": listing, "game_data": buyer_data["game_data"], "premium_game_data": buyer_data["premium_game_data"]}
@@ -111,3 +117,28 @@ def cancel_listing(body: ListingRequest, user=Depends(_REQUIRE_AUCTION_TIER)):
 
   user_data = supabase.table("User_Login_Data").select("game_data, premium_game_data").eq("id", user.id).single().execute().data
   return {"status": "ok", "listing": listing, "game_data": user_data["game_data"], "premium_game_data": user_data["premium_game_data"]}
+
+
+def _execute_trade(buyer_id, seller_id, listing):
+  if listing["price_item_type"] == "tokens":
+    spend_tokens(buyer_id, listing["price_item_amount"])
+    add_tokens(seller_id, listing["price_item_amount"])
+  elif listing["price_item_type"] == "cookies":
+    spend_cookies(buyer_id, listing["price_item_amount"])
+    add_cookies(seller_id, listing["price_item_amount"])
+
+  if listing["selling_item_type"] == "tokens":
+    add_tokens(buyer_id, listing["amount"])
+  elif listing["selling_item_type"] == "cookies":
+    add_cookies(buyer_id, listing["amount"])
+
+
+def _reinsert_listing(listing):
+  supabase.table("Auction_House").insert({
+    "seller_username": listing["seller_username"],
+    "selling_item_type": listing["selling_item_type"],
+    "amount": listing["amount"],
+    "price_item_type": listing["price_item_type"],
+    "price_item_amount": listing["price_item_amount"],
+    "creation_timestamptz": listing["creation_timestamptz"],
+  }).execute()

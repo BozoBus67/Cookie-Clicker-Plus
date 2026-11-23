@@ -72,7 +72,14 @@ class _Fake_Table:
       return _Fake_Result(data=[self.insert_payload])
     if self.mode == "delete":
       self.parent.last_delete = True
-      return _Fake_Result(data=None)
+      # Supabase returns the deleted rows by default; the atomic-reserve
+      # pattern in auction_house (cancel_listing, buy_listing) checks
+      # whether .data is non-empty to decide if the race was won. Return a
+      # sentinel row so happy-path tests pass; a test wanting to simulate
+      # "nothing to delete" can set parent.delete_returns_empty = True.
+      if getattr(self.parent, "delete_returns_empty", False):
+        return _Fake_Result(data=[])
+      return _Fake_Result(data=[{}])
     # select: special-case the idempotency-tracking table so a generic
     # parent.row meant for User_Login_Data doesn't accidentally satisfy the
     # "have we seen this event?" check in the Stripe webhook handler.
