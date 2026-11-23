@@ -13,7 +13,7 @@ import Roulette_Modal from './gambling/roulette_modal';
 import { recalculate_cps, save_game_data } from './game_utils';
 import Main_Body from './main_screen_parts/main_body';
 import Top_Bar from './main_screen_parts/top_bar';
-import gear_icon from '../assets/ui/gear.png';
+import settings_icon from '../assets/ui/settings_icon.png';
 
 export default function Main_Screen() {
   const dispatch = useDispatch();
@@ -224,7 +224,7 @@ function Settings_Button() {
           filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))',
         }}
       >
-        <img src={gear_icon} width="56" height="56" alt="Settings" />
+        <img src={settings_icon} width="56" height="56" alt="Settings" />
       </button>
       {lock_modal}
     </>
