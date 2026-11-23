@@ -13,6 +13,7 @@ import Roulette_Modal from './gambling/roulette_modal';
 import { recalculate_cps, save_game_data } from './game_utils';
 import Main_Body from './main_screen_parts/main_body';
 import Top_Bar from './main_screen_parts/top_bar';
+import gear_icon from '../assets/ui/gear_icon.svg';
 
 export default function Main_Screen() {
   const dispatch = useDispatch();
@@ -195,7 +196,6 @@ export default function Main_Screen() {
 
 function Settings_Button() {
   const navigate = useNavigate();
-  const theme = useTheme();
   const { gate, lock_modal } = useTierGate(1);
   const [hovered, set_hovered] = useState(false);
 
@@ -214,7 +214,6 @@ function Settings_Button() {
           height: '64px',
           border: 'none',
           background: 'transparent',
-          color: theme.accent,
           padding: 0,
           cursor: 'pointer',
           display: 'inline-flex',
@@ -225,21 +224,7 @@ function Settings_Button() {
           filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))',
         }}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="52"
-          height="52"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-          <circle cx="12" cy="12" r="3" />
-        </svg>
+        <img src={gear_icon} width="52" height="52" alt="Settings" />
       </button>
       {lock_modal}
     </>
